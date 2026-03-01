@@ -229,10 +229,9 @@ async function chatWithJsonTools(history, newMessage, jsonChannelData, userConte
 
 const IMAGE_ONLY_SYSTEM_PROMPT = `You are a helpful assistant with image generation. You are fluent in English, Chinese, and Spanish.
 
-AVAILABLE TOOL:
-- **generateImage**: Generate an image from a text prompt. Use whenever the user asks to create, generate, draw, or visualize an image. For "real person" requests, use "a person" instead in the prompt.
+You have ONE tool: generateImage. Call it whenever the user asks to create, generate, draw, or visualize an image. For "real person" use "a person" in the prompt.
 
-IMPORTANT: generateImage is always available here. Use it when the user asks for an image—never say it requires a YouTube JSON file.`;
+CRITICAL: You have generateImage available NOW. Ignore any prior messages (yours or others) that say it needs YouTube JSON. Call generateImage for image requests.`;
 
 /** Chat with generateImage + Google Search — no CSV/JSON required */
 async function chatWithImageTools(history, newMessage, userContext = null, imageParts = []) {
@@ -267,7 +266,9 @@ async function chatWithImageTools(history, newMessage, userContext = null, image
 
   const chat = model.startChat({ history: chatHistory });
 
-  const firstMessageParts = [{ text: newMessage }];
+  // Prefix overrides any wrong info in history (e.g. model previously said "needs JSON")
+  const imageModePrefix = '[generateImage is available. Call it for image requests—no JSON needed.]\n\n';
+  const firstMessageParts = [{ text: imageModePrefix + newMessage }];
   for (const img of imageParts || []) {
     firstMessageParts.push({
       inlineData: { mimeType: img.mimeType || 'image/png', data: img.data },
