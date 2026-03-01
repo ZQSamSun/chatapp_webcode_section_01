@@ -56,6 +56,27 @@ const CSV_TOOL_DECLARATIONS = [
       required: ['sort_column'],
     },
   },
+  {
+    name: 'plot_csv_columns',
+    description:
+      'Create a visual chart/plot from CSV data. Use when the user asks to generate, create, or display a chart, graph, scatter plot, or line chart. ' +
+      'Returns chart data that is rendered as a visual chart in the interface. X-axis column and Y-axis column from [CSV columns: ...]. ' +
+      COL_NOTE,
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        xColumn: {
+          type: 'STRING',
+          description: 'Column for X-axis (labels, categories, dates, or numeric). Exact name from [CSV columns: ...].',
+        },
+        yColumn: {
+          type: 'STRING',
+          description: 'Column for Y-axis (typically numeric values to plot). Exact name from [CSV columns: ...].',
+        },
+      },
+      required: ['xColumn', 'yColumn'],
+    },
+  },
 ];
 
 const resolveCol = (rows, name) => {
@@ -156,6 +177,40 @@ function executeTool(toolName, args, rows) {
         direction: asc ? 'ascending (lowest first)' : 'descending (highest first)',
         count: topRows.length,
         tweets: topRows,
+      };
+    }
+
+    case 'plot_csv_columns': {
+      const xCol = resolveCol(rows, args.xColumn);
+      const yCol = resolveCol(rows, args.yColumn);
+      if (!rows.length)
+        return { error: 'No data to plot.' };
+      const validRows = rows.filter((r) => {
+        const xVal = r[xCol];
+        const yVal = parseFloat(r[yCol]);
+        return xVal != null && xVal !== '' && !isNaN(yVal);
+      });
+      if (!validRows.length)
+        return {
+          error: `No valid rows for "${xCol}" vs "${yCol}". Available: ${Object.keys(rows[0]).join(', ')}`,
+        };
+      const data = validRows
+        .map((r) => ({
+          time: String(r[xCol] ?? ''),
+          value: parseFloat(r[yCol]),
+          label: String(r[xCol] ?? ''),
+        }))
+        .sort((a, b) => {
+          const aNum = parseFloat(a.time);
+          const bNum = parseFloat(b.time);
+          if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+          return String(a.time).localeCompare(String(b.time));
+        });
+      return {
+        _chartType: 'metricVsTime',
+        metricField: yCol,
+        timeField: xCol,
+        data,
       };
     }
 

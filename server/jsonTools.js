@@ -54,7 +54,7 @@ const JSON_TOOL_DECLARATIONS = [
     name: 'plot_metric_vs_time',
     description:
       'Plot a numeric field (e.g. viewCount, likeCount) vs time (publishedAt) from YouTube channel JSON. ' +
-      'Returns chart data for a React component with enlarge and download options.',
+      'Use for trends over time. Returns a visual chart.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -69,6 +69,26 @@ const JSON_TOOL_DECLARATIONS = [
         },
       },
       required: ['metricField'],
+    },
+  },
+  {
+    name: 'plot_metric_vs_metric',
+    description:
+      'Plot two numeric fields (e.g. likeCount vs commentCount) from YouTube channel JSON. ' +
+      'Use for scatter plots, correlations, or comparing two metrics. Returns a visual chart.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        xField: {
+          type: 'STRING',
+          description: 'Numeric field for X-axis. Common: viewCount, likeCount, commentCount.',
+        },
+        yField: {
+          type: 'STRING',
+          description: 'Numeric field for Y-axis. Common: viewCount, likeCount, commentCount.',
+        },
+      },
+      required: ['xField', 'yField'],
     },
   },
   {
@@ -162,6 +182,32 @@ async function executeJsonTool(toolName, args, jsonChannelData, imageParts = [])
         _chartType: 'metricVsTime',
         metricField,
         timeField,
+        data,
+      };
+    }
+
+    case 'plot_metric_vs_metric': {
+      const xField = resolveField(videos, args.xField);
+      const yField = resolveField(videos, args.yField);
+      const valid = videos.filter(
+        (v) => !isNaN(parseFloat(v[xField])) && !isNaN(parseFloat(v[yField]))
+      );
+      if (!valid.length) {
+        return {
+          error: `Could not plot. Fields "${xField}" or "${yField}" not found or no numeric values. Available: ${availableFields.join(', ')}`,
+        };
+      }
+      const data = valid
+        .map((v) => ({
+          time: String(parseFloat(v[xField])),
+          value: parseFloat(v[yField]),
+          label: v.title || `${v[xField]} vs ${v[yField]}`,
+        }))
+        .sort((a, b) => parseFloat(a.time) - parseFloat(b.time));
+      return {
+        _chartType: 'metricVsTime',
+        metricField: yField,
+        timeField: xField,
         data,
       };
     }
