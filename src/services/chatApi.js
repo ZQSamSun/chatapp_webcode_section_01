@@ -45,6 +45,7 @@ export const streamChat = async function* (history, newMessage, imageParts = [],
       message: newMessage,
       imageParts,
       useCodeExecution,
+      user: options.user || null,
     }),
     signal: options.signal,
   });
@@ -59,15 +60,18 @@ export const streamChat = async function* (history, newMessage, imageParts = [],
   }
 };
 
-export const chatWithCsvTools = async (history, newMessage, csvHeaders, csvRows) => {
+export const chatWithTools = async (history, newMessage, { csvHeaders, csvRows, jsonChannelData, user, imageParts } = {}) => {
   const res = await fetch(`${API}/api/chat/tools`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       history,
       message: newMessage,
-      csvHeaders,
-      csvRows,
+      csvHeaders: csvHeaders || [],
+      csvRows: csvRows || [],
+      jsonChannelData: jsonChannelData || null,
+      user: user || null,
+      imageParts: imageParts || [],
     }),
   });
 
@@ -78,3 +82,6 @@ export const chatWithCsvTools = async (history, newMessage, csvHeaders, csvRows)
 
   return res.json();
 };
+
+export const chatWithCsvTools = async (history, newMessage, csvHeaders, csvRows) =>
+  chatWithTools(history, newMessage, { csvHeaders, csvRows });

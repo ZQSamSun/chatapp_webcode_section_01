@@ -49,7 +49,7 @@ app.get('/api/status', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { username, password, email } = req.body;
+    const { username, password, email, firstName, lastName } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: 'Username and password required' });
     const name = String(username).trim().toLowerCase();
@@ -60,6 +60,8 @@ app.post('/api/users', async (req, res) => {
       username: name,
       password: hashed,
       email: email ? String(email).trim().toLowerCase() : null,
+      firstName: firstName ? String(firstName).trim() : '',
+      lastName: lastName ? String(lastName).trim() : '',
       createdAt: new Date().toISOString(),
     });
     res.json({ ok: true });
@@ -78,7 +80,12 @@ app.post('/api/users/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'User not found' });
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'Invalid password' });
-    res.json({ ok: true, username: name });
+    res.json({
+      ok: true,
+      username: name,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -212,13 +219,28 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
+// ── YouTube Channel Download ────────────────────────────────────────────────────
+
+const { fetchChannelVideos } = require('./youtubeService');
+
+app.post('/api/youtube/channel', async (req, res) => {
+  try {
+    const { url, maxVideos } = req.body;
+    const max = Math.min(100, Math.max(1, Number(maxVideos) || 10));
+    const result = await fetchChannelVideos(url || '', max);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Chat (Gemini proxy — API key stays on server) ─────────────────────────────
 
-const { streamChat, chatWithCsvTools } = require('./geminiService');
+const { streamChat, chatWithCsvTools, chatWithJsonTools } = require('./geminiService');
 
 app.post('/api/chat/stream', async (req, res) => {
   try {
-    const { history, message, imageParts, useCodeExecution } = req.body;
+    const { history, message, imageParts, useCodeExecution, user } = req.body;
     if (typeof message !== 'string') return res.status(400).json({ error: 'message required' });
 
     res.setHeader('Content-Type', 'application/x-ndjson');
@@ -226,7 +248,7 @@ app.post('/api/chat/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
-    for await (const chunk of streamChat(history || [], message, imageParts || [], !!useCodeExecution)) {
+    for await (const chunk of streamChat(history || [], message, imageParts || [], !!useCodeExecution, user || null)) {
       res.write(JSON.stringify(chunk) + '\n');
       if (res.flush) res.flush();
     }
@@ -239,11 +261,16 @@ app.post('/api/chat/stream', async (req, res) => {
 
 app.post('/api/chat/tools', async (req, res) => {
   try {
-    const { history, message, csvHeaders, csvRows } = req.body;
+    const { history, message, csvHeaders, csvRows, jsonChannelData, user, imageParts } = req.body;
     if (typeof message !== 'string') return res.status(400).json({ error: 'message required' });
-    if (!Array.isArray(csvRows)) return res.status(400).json({ error: 'csvRows array required' });
 
-    const result = await chatWithCsvTools(history || [], message, csvHeaders || [], csvRows);
+    if (jsonChannelData?.videos?.length) {
+      const result = await chatWithJsonTools(history || [], message, jsonChannelData, user || null, imageParts || []);
+      return res.json(result);
+    }
+
+    if (!Array.isArray(csvRows)) return res.status(400).json({ error: 'csvRows or jsonChannelData required' });
+    const result = await chatWithCsvTools(history || [], message, csvHeaders || [], csvRows, user || null);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

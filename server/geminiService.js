@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { CSV_TOOL_DECLARATIONS, executeTool } = require('./csvTools');
+const { JSON_TOOL_DECLARATIONS, executeJsonTool } = require('./jsonTools');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.REACT_APP_GEMINI_API_KEY || '');
 const MODEL = 'gemini-2.5-flash';
@@ -11,19 +12,26 @@ const CODE_EXEC_TOOL = { codeExecution: {} };
 
 let cachedPrompt = null;
 
-function loadSystemPrompt() {
-  if (cachedPrompt) return cachedPrompt;
-  try {
-    const promptPath = path.join(__dirname, '../public/prompt_chat.txt');
-    cachedPrompt = fs.readFileSync(promptPath, 'utf8').trim();
-  } catch {
-    cachedPrompt = '';
+function loadSystemPrompt(userContext = null) {
+  let base = cachedPrompt;
+  if (!base) {
+    try {
+      const promptPath = path.join(__dirname, '../public/prompt_chat.txt');
+      base = fs.readFileSync(promptPath, 'utf8').trim();
+      cachedPrompt = base;
+    } catch {
+      base = '';
+    }
   }
-  return cachedPrompt;
+  if (userContext?.firstName) {
+    const name = [userContext.firstName, userContext.lastName].filter(Boolean).join(' ').trim() || userContext.username;
+    base = `${base}\n\nUSER: You are speaking with ${name}. Address them by their first name (${userContext.firstName || userContext.username}) in your first message.`;
+  }
+  return base;
 }
 
-async function* streamChat(history, newMessage, imageParts = [], useCodeExecution = false) {
-  const systemInstruction = loadSystemPrompt();
+async function* streamChat(history, newMessage, imageParts = [], useCodeExecution = false, userContext = null) {
+  const systemInstruction = loadSystemPrompt(userContext);
   const tools = useCodeExecution ? [CODE_EXEC_TOOL] : [SEARCH_TOOL];
   const model = genAI.getGenerativeModel({ model: MODEL, tools });
 
@@ -90,8 +98,8 @@ async function* streamChat(history, newMessage, imageParts = [], useCodeExecutio
   if (grounding) yield { type: 'grounding', data: grounding };
 }
 
-async function chatWithCsvTools(history, newMessage, csvHeaders, csvRows) {
-  const systemInstruction = loadSystemPrompt();
+async function chatWithCsvTools(history, newMessage, csvHeaders, csvRows, userContext = null) {
+  const systemInstruction = loadSystemPrompt(userContext);
   const model = genAI.getGenerativeModel({
     model: MODEL,
     tools: [{ functionDeclarations: CSV_TOOL_DECLARATIONS }],
@@ -141,4 +149,62 @@ async function chatWithCsvTools(history, newMessage, csvHeaders, csvRows) {
   return { text: response.text(), charts, toolCalls };
 }
 
-module.exports = { streamChat, chatWithCsvTools };
+async function chatWithJsonTools(history, newMessage, jsonChannelData, userContext = null, imageParts = []) {
+  const systemInstruction = loadSystemPrompt(userContext);
+  const model = genAI.getGenerativeModel({
+    model: MODEL,
+    tools: [{ functionDeclarations: JSON_TOOL_DECLARATIONS }],
+  });
+
+  const baseHistory = history.map((m) => ({
+    role: m.role === 'user' ? 'user' : 'model',
+    parts: [{ text: m.content || '' }],
+  }));
+
+  const chatHistory = systemInstruction
+    ? [
+        {
+          role: 'user',
+          parts: [{ text: `Follow these instructions in every response:\n\n${systemInstruction}` }],
+        },
+        { role: 'model', parts: [{ text: "Got it! I'll follow those instructions." }] },
+        ...baseHistory,
+      ]
+    : baseHistory;
+
+  const chat = model.startChat({ history: chatHistory });
+
+  const jsonSummary = jsonChannelData?.videos?.length
+    ? `[Channel JSON: ${jsonChannelData.channelTitle || 'YouTube'} | ${jsonChannelData.videos.length} videos | Fields: ${Object.keys(jsonChannelData.videos[0] || {}).join(', ')}]\n\n`
+    : '';
+  const msgWithContext = jsonSummary + newMessage;
+
+  const firstMessageParts = [{ text: msgWithContext }];
+  for (const img of imageParts || []) {
+    firstMessageParts.push({
+      inlineData: { mimeType: img.mimeType || 'image/png', data: img.data },
+    });
+  }
+
+  let response = (await chat.sendMessage(firstMessageParts)).response;
+
+  const charts = [];
+  const toolCalls = [];
+
+  for (let round = 0; round < 5; round++) {
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    const funcCall = parts.find((p) => p.functionCall);
+    if (!funcCall) break;
+
+    const { name, args } = funcCall.functionCall;
+    const toolResult = await executeJsonTool(name, args || {}, jsonChannelData, imageParts);
+    toolCalls.push({ name, args: args || {}, result: toolResult });
+    if (toolResult?._chartType) charts.push(toolResult);
+
+    response = (await chat.sendMessage([{ functionResponse: { name, response: { result: toolResult } } }])).response;
+  }
+
+  return { text: response.text(), charts, toolCalls };
+}
+
+module.exports = { streamChat, chatWithCsvTools, chatWithJsonTools };

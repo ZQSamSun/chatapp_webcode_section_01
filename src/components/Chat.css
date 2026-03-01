@@ -2,7 +2,8 @@
 
 .chat-layout {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
 }
@@ -775,6 +776,36 @@
   color: #6ee7b7;
 }
 
+/* JSON chip */
+.json-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.6rem;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  border-radius: 20px;
+  max-width: 100%;
+}
+
+.json-chip-icon { font-size: 0.95rem; flex-shrink: 0; }
+.json-chip-name { font-size: 0.82rem; font-weight: 600; color: #a5b4fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.json-chip-meta { font-size: 0.73rem; color: rgba(165, 180, 252, 0.6); white-space: nowrap; }
+.json-chip-remove { background: none; border: none; color: rgba(165, 180, 252, 0.5); font-size: 1rem; cursor: pointer; padding: 0; flex-shrink: 0; }
+.json-chip-remove:hover { color: #a5b4fc; }
+
+.msg-json-badge {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  background: rgba(129, 140, 248, 0.15);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  border-radius: 12px;
+  font-size: 0.72rem;
+  color: #a5b4fc;
+}
+
 /* CSV badge on sent user messages */
 
 .msg-csv-badge {
@@ -974,4 +1005,115 @@
 
 .chat-empty-state p {
   margin: 0;
+}
+
+/* Metric vs Time chart */
+.metric-vs-time-chart {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+}
+
+.metric-vs-time-chart.enlarged { max-width: 100%; }
+.chart-actions { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.chart-actions button {
+  padding: 0.35rem 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chart-tooltip {
+  background: rgba(15, 15, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
+/* Play video card */
+.play-video-card {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  max-width: 280px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.play-video-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.play-video-thumb {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.play-video-thumb img {
+  width: 100%;
+  display: block;
+}
+
+.play-video-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.play-video-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.3;
+}
+
+/* Generated image */
+.generated-image-wrap {
+  margin: 1rem 0;
+}
+
+.generated-image-wrap.enlarged .generated-image {
+  max-width: 100%;
+  max-height: 70vh;
+}
+
+.generated-image-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.generated-image-actions button {
+  padding: 0.35rem 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.generated-image {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
