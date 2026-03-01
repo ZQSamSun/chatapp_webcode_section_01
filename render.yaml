@@ -13,6 +13,8 @@ services:
     envVars:
       - key: MONGODB_URI
         sync: false   # set manually in the Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false   # Gemini API key (kept secret on backend only)
 
   # ── Frontend: React static site ────────────────────────────────────────────
   - type: static
@@ -21,8 +23,6 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./build
     envVars:
-      - key: REACT_APP_GEMINI_API_KEY
-        sync: false   # set manually — baked into JS bundle at build time
       - key: REACT_APP_API_URL
         sync: false   # set to the backend URL, e.g. https://chatapp-backend.onrender.com
     routes:

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { streamChat, chatWithCsvTools, CODE_KEYWORDS } from '../services/gemini';
-import { parseCsvToRows, executeTool, computeDatasetSummary, enrichWithEngagement, buildSlimCsv } from '../services/csvTools';
+import { streamChat, chatWithCsvTools, CODE_KEYWORDS } from '../services/chatApi';
+import { parseCsvToRows, computeDatasetSummary, enrichWithEngagement, buildSlimCsv } from '../services/csvTools';
 import {
   getSessions,
   createSession,
@@ -128,6 +128,7 @@ export default function Chat({ username, onLogout }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const abortRef = useRef(false);
+  const abortControllerRef = useRef(null);
   const fileInputRef = useRef(null);
   // Set to true immediately before setActiveSessionId() is called during a send
   // so the messages useEffect knows to skip the reload (streaming is in progress).
@@ -194,7 +195,7 @@ export default function Chat({ username, onLogout }) {
   const handleDeleteSession = async (sessionId, e) => {
     e.stopPropagation();
     setOpenMenuId(null);
-    await deleteSession(sessionId);
+    await deleteSession(sessionId, username);
     const remaining = sessions.filter((s) => s.id !== sessionId);
     setSessions(remaining);
     if (activeSessionId === sessionId) {
@@ -314,6 +315,7 @@ export default function Chat({ username, onLogout }) {
 
   const handleStop = () => {
     abortRef.current = true;
+    abortControllerRef.current?.abort();
   };
 
   // ── Send message ────────────────────────────────────────────────────────────
@@ -424,6 +426,7 @@ ${sessionSummary}${slimCsvBlock}
     ]);
 
     abortRef.current = false;
+    abortControllerRef.current = new AbortController();
 
     let fullContent = '';
     let groundingData = null;
@@ -439,7 +442,7 @@ ${sessionSummary}${slimCsvBlock}
           history,
           promptForGemini,
           sessionCsvHeaders,
-          (toolName, args) => executeTool(toolName, args, sessionCsvRows)
+          sessionCsvRows
         );
         fullContent = answer;
         toolCharts = returnedCharts || [];
@@ -460,7 +463,9 @@ ${sessionSummary}${slimCsvBlock}
         );
       } else {
         // ── Streaming path: code execution or search ─────────────────────────
-        for await (const chunk of streamChat(history, promptForGemini, imageParts, useCodeExecution)) {
+        for await (const chunk of streamChat(history, promptForGemini, imageParts, useCodeExecution, {
+          signal: abortControllerRef.current.signal,
+        })) {
           if (abortRef.current) break;
           if (chunk.type === 'text') {
             fullContent += chunk.text;
@@ -480,11 +485,14 @@ ${sessionSummary}${slimCsvBlock}
         }
       }
     } catch (err) {
-      const errText = `Error: ${err.message}`;
-      setMessages((m) =>
-        m.map((msg) => (msg.id === assistantId ? { ...msg, content: errText } : msg))
-      );
-      fullContent = errText;
+      const isAborted = err.name === 'AbortError' || err.message?.includes('aborted');
+      if (!isAborted) {
+        const errText = `Error: ${err.message}`;
+        setMessages((m) =>
+          m.map((msg) => (msg.id === assistantId ? { ...msg, content: errText } : msg))
+        );
+        fullContent = errText;
+      }
     }
 
     if (groundingData) {

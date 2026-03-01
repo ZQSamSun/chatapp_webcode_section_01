@@ -128,12 +128,16 @@ app.post('/api/sessions', async (req, res) => {
 });
 
 app.delete('/api/sessions/:id', async (req, res) => {
-  try {
-    await db.collection('sessions').deleteOne({ _id: new ObjectId(req.params.id) });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { username } = req.query; // or from auth token
+  if (!username) return res.status(400).json({ error: 'username required' });
+
+  const result = await db.collection('sessions').deleteOne({
+    _id: new ObjectId(req.params.id),
+    username,
+  });
+
+  if (result.deletedCount === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
 });
 
 app.patch('/api/sessions/:id/title', async (req, res) => {
@@ -203,6 +207,44 @@ app.get('/api/messages', async (req, res) => {
       };
     });
     res.json(msgs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Chat (Gemini proxy — API key stays on server) ─────────────────────────────
+
+const { streamChat, chatWithCsvTools } = require('./geminiService');
+
+app.post('/api/chat/stream', async (req, res) => {
+  try {
+    const { history, message, imageParts, useCodeExecution } = req.body;
+    if (typeof message !== 'string') return res.status(400).json({ error: 'message required' });
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    for await (const chunk of streamChat(history || [], message, imageParts || [], !!useCodeExecution)) {
+      res.write(JSON.stringify(chunk) + '\n');
+      if (res.flush) res.flush();
+    }
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+    else res.end();
+  }
+});
+
+app.post('/api/chat/tools', async (req, res) => {
+  try {
+    const { history, message, csvHeaders, csvRows } = req.body;
+    if (typeof message !== 'string') return res.status(400).json({ error: 'message required' });
+    if (!Array.isArray(csvRows)) return res.status(400).json({ error: 'csvRows array required' });
+
+    const result = await chatWithCsvTools(history || [], message, csvHeaders || [], csvRows);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -40,8 +40,9 @@ export const createSession = async (username, agent = null, title = null) => {
   });
 };
 
-export const deleteSession = async (sessionId) => {
-  return api(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+export const deleteSession = async (sessionId, username) => {
+  const qs = username ? `?username=${encodeURIComponent(username)}` : '';
+  return api(`/api/sessions/${sessionId}${qs}`, { method: 'DELETE' });
 };
 
 export const updateSessionTitle = async (sessionId, title) => {
